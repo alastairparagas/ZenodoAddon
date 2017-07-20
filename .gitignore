@@ -1,0 +1,7 @@
+*-config.json
+lib
+project
+.idea
+.DS_Store
+target
+*.iml
