@@ -13,6 +13,9 @@ class AddonsDirectory(environmentArgs: EnvironmentArgsRecord)
   def getAddon(name: String): Option[(QueryAddon, String)] =
     directory.get(name).map(queryAddon => (queryAddon, name))
 
-  def close() = directory.foreach[Unit](_._2.close)
+  def allAddons(): List[QueryAddon] =
+    directory.values.toList
+
+  def close() = directory.values.foreach(_.close)
 
 }
