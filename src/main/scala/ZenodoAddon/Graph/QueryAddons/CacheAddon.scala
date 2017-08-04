@@ -38,13 +38,33 @@ class CacheAddon(environmentArgs: EnvironmentArgsRecord) extends QueryAddon
     redisPoolOption.get.withClient(client => {
       val cacheKey =
         s"krr,${keyword},${ranker.getClass.getName},${take}"
-      results.foreach(result => client.rpush(
-        cacheKey, result
-      ))
-
+      results
+        .foreach(result => client.rpush(cacheKey, result))
       client.hmset("cache-ages", Map(
         cacheKey -> Instant.now().toEpochMilli
       ))
+
+      val cacheKeysList = {
+        val cacheKeysForKeywordAndRanker =
+          s"krr,${keyword},${ranker.getClass.getName},*"
+
+        val scanResults = client.scan(
+          0,
+          cacheKeysForKeywordAndRanker,
+          count = take
+        )
+        val (_, matchedKeys) = scanResults.getOrElse((None, None))
+
+        matchedKeys
+          .getOrElse(List())
+          .flatten
+      }
+      cacheKeysList
+        .map(cacheKeyString =>
+          (cacheKeyString, Integer.parseInt(cacheKeyString.split(","){3}))
+        )
+        .filter(_._2 < take)
+        .foreach[Unit](tuplet => client.del(tuplet._1))
     })
   }
 
@@ -63,25 +83,24 @@ class CacheAddon(environmentArgs: EnvironmentArgsRecord) extends QueryAddon
       var cachedResultAgeOption: Option[Long] = None
 
       redisPoolOption.get.withClient(client => {
-        val scanResults = client.scan(
-          0,
-          s"krr,${keyword},${ranker.getClass.getName},*",
-          count = take
-        )
-
-        val (_, matchedKeys) = scanResults.getOrElse((None, None))
-
-        val cacheKeyOption = matchedKeys
-          .getOrElse(List())
-          .flatten
-          .filter(keyname =>
-            Integer.parseInt(keyname.split(","){3}) >= take
+        val cacheKeyOption = {
+          val scanResults = client.scan(
+            0,
+            s"krr,${keyword},${ranker.getClass.getName},*",
+            count = take
           )
-          .lift(0)
+          val (_, matchedKeys) = scanResults.getOrElse((None, None))
 
-        cachedResultOption = cacheKeyOption.flatMap(
-          cacheKeyString => client.lrange(cacheKeyString, 0, take)
-        )
+          matchedKeys
+            .getOrElse(List())
+            .flatten
+            .filter(keyname =>
+              Integer.parseInt(keyname.split(","){3}) >= take
+            )
+            .lift(0)
+        }
+        cachedResultOption = cacheKeyOption
+          .flatMap(cacheKeyString => client.lrange(cacheKeyString, 0, take))
         cachedResultAgeOption = cacheKeyOption
           .flatMap(
             cacheKeyString => client
