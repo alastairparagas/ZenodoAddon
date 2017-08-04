@@ -1,44 +1,40 @@
 package ZenodoAddon
 
-import Graph.{
-  KeywordRecommendRequest,
-  KeywordRecommendResponse,
-  Runner => GraphRunner
-}
-
+import Graph.{KeywordRecommendRequest, KeywordRecommendResponse}
+import ZenodoAddon.Graph.Pgx.PgxRunner
 import argonaut._
 import argonaut.Argonaut._
 import spark.{Request, Response}
-import spark.Spark.{initExceptionHandler, post}
+import spark.Spark.{initExceptionHandler, port, post, stop}
+
+import scala.util.Try
 
 object Main extends App
 {
 
   new StartupArgs()
     .run(args)
-    .map(startupArgs => {
-      println("Starting up GraphRunner")
-      val graphRunner = new GraphRunner()
-      graphRunner
-        .startup(
-          graphEngineDsn = startupArgs.graphEngineDsn,
-          graphSettingsFilePath = startupArgs.graphSettingsFile
-        )
-        .get
-      this.setupServer(graphRunner)
-      graphRunner.shutdown().get
+    .map(environmentArgs => {
+      port(environmentArgs.port)
+      setupServer(environmentArgs)
     })
     .recover({
-      case error: Throwable => println("Error: " + error.getMessage)
+      case throwable: Throwable => {
+        println("Error: " + throwable.getMessage)
+        stop()
+        System.exit(0)
+      }
     })
-    .get
 
-  private def setupServer(graphRunner: GraphRunner): Unit = {
+  private def setupServer(environmentArgs: EnvironmentArgsRecord): Unit = {
 
     implicit def KeywordRecommendResponseEncode:
     EncodeJson[KeywordRecommendResponse] =
       EncodeJson((k: KeywordRecommendResponse) => {
-        ("data" := k.result.getOrElse(List())) ->:
+        ("data" := (
+          ("results" := k.result.getOrElse(List())) ->:
+            ("addons" := k.addonsMetadata) ->: jEmptyObject
+        )) ->:
           ("message" := k.message.getOrElse("")) ->:
           ("success" := k.isSuccessful) ->: jEmptyObject
       })
@@ -50,12 +46,19 @@ object Main extends App
           ranker <- (c --\ "ranker").as[Option[String]]
           keyword <- (c --\ "keyword").as[Option[String]]
           normalizer <- (c --\ "normalizer").as[Option[String]]
+          count <- (c --\ "count").as[Option[Int]]
+          addons <- (c --\ "addons").as[Option[List[String]]]
         } yield KeywordRecommendRequest(
           normalizer=normalizer,
           ranker=ranker.get,
-          keyword=keyword.get
+          addons=addons.getOrElse(List()),
+          keyword=keyword.get,
+          take=count.getOrElse(5)
         )
       })
+
+    val graphRunner = new PgxRunner()
+    graphRunner.startup(environmentArgs)
 
     def recommendationHandler(request: Request,
                               response: Response) : KeywordRecommendResponse = {
@@ -66,34 +69,42 @@ object Main extends App
           result = None
         )
 
-      val keywordRecommendRequestOpt: Option[KeywordRecommendRequest] =
+      response.`type`("application/json")
+
+      val keywordRecommendRequestOption: Option[KeywordRecommendRequest] =
         Parse.decodeOption[KeywordRecommendRequest](request.body)
-      if (keywordRecommendRequestOpt.isEmpty) {
+
+      if (keywordRecommendRequestOption.isEmpty) {
         KeywordRecommendResponse(
           isSuccessful = false,
           message = Some("Invalid JSON payload"),
           result = None
         )
+      } else {
+        Try({keywordRecommendRequestOption.get})
+          .flatMap(keywordRecommendReq => graphRunner.query(
+            keywordRecommendReq
+          ))
+          .recover({
+            case error: Throwable => KeywordRecommendResponse(
+              isSuccessful = false,
+              message = Some(error.getMessage),
+              result = None
+            )
+          })
+          .get
       }
-
-      graphRunner
-        .query(keywordRecommendRequestOpt.get)
-        .recover({
-          case error: Throwable => KeywordRecommendResponse(
-            isSuccessful = false,
-            message = Some(error.getMessage),
-            result = None
-          )
-        })
-        .get
     }
 
+    initExceptionHandler(e => throw e)
+    Runtime.getRuntime.addShutdownHook(
+      new Thread(() => graphRunner.close())
+    )
     post("/recommendation", (req, res) =>
       KeywordRecommendResponseEncode.encode(
         recommendationHandler(req, res)
       )
     )
-    initExceptionHandler(e => throw e)
   }
 
 }
