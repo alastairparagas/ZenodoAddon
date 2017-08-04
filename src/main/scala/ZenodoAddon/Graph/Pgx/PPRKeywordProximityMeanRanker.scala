@@ -2,7 +2,6 @@ package ZenodoAddon.Graph.Pgx
 
 import ZenodoAddon.Graph.KeywordProximityRanker
 import oracle.pgx.api.{PgqlResult, PgxGraph, PgxVertex}
-
 import scala.collection.JavaConverters
 
 

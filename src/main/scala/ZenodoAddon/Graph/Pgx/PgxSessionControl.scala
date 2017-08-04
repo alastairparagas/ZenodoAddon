@@ -1,11 +1,10 @@
 package ZenodoAddon.Graph.Pgx
 
+import ZenodoAddon.Graph.{GraphNormalizer, SessionControl}
+import oracle.pgx.api.{Pgx, PgxGraph, PgxSession}
 import java.time.Instant
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.locks.ReentrantReadWriteLock
-
-import ZenodoAddon.Graph.{GraphNormalizer, SessionControl}
-import oracle.pgx.api.{Pgx, PgxGraph, PgxSession}
 
 
 /**

@@ -1,18 +1,14 @@
 package ZenodoAddon.Graph.QueryAddons
 
-import java.time.Instant
-
 import ZenodoAddon.Graph.{
-  NRequest,
   NKeywordRecommendRequest,
-  Response,
   KeywordRecommendResponse
 }
 import ZenodoAddon.EnvironmentArgsRecord
-import com.redis.RedisClientPool
-
+import java.time.Instant
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
+import com.redis.RedisClientPool
 
 
 class CacheAddon(environmentArgs: EnvironmentArgsRecord) extends QueryAddon
@@ -29,22 +25,6 @@ class CacheAddon(environmentArgs: EnvironmentArgsRecord) extends QueryAddon
     case _ => throw new RuntimeException(
       "Require Redis settings"
     )
-  }
-
-  def pipeline[RequestSubtype <: NRequest[_], ResponseSubtype <: Response]
-  (
-    requestPacket: RequestSubtype,
-    queryExecution: () => ResponseSubtype
-  ):
-  (ResponseSubtype, Map[String, String]) = {
-    (requestPacket, queryExecution) match {
-      case (
-        rp: NKeywordRecommendRequest[_],
-        qe: Function0[KeywordRecommendResponse]) =>
-        pipeline(rp, qe)
-
-      case(_, _) => (queryExecution.apply(), Map[String, String]())
-    }
   }
 
   def pipeline

@@ -1,13 +1,16 @@
 package ZenodoAddon
 
-import Graph.{KeywordRecommendRequest, KeywordRecommendResponse}
+import ZenodoAddon.Graph.{
+  KeywordRecommendRequest,
+  KeywordRecommendResponse
+}
 import ZenodoAddon.Graph.Pgx.PgxRunner
+import scala.util.Try
 import argonaut._
 import argonaut.Argonaut._
 import spark.{Request, Response}
 import spark.Spark.{initExceptionHandler, port, post, stop}
 
-import scala.util.Try
 
 object Main extends App
 {

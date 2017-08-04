@@ -2,6 +2,7 @@ package ZenodoAddon
 
 import scala.reflect.ClassTag
 
+
 object Utils {
 
   def getClassObjectFromString(className: String,

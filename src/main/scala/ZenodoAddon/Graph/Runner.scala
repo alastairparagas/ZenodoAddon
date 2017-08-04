@@ -1,8 +1,9 @@
 package ZenodoAddon.Graph
+
 import ZenodoAddon.Graph.QueryAddons.AddonsDirectory
 import ZenodoAddon.{EnvironmentArgsRecord, Utils}
-
 import scala.util.Try
+
 
 abstract class Request(
   addons: List[String]

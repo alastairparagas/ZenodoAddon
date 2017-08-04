@@ -1,15 +1,13 @@
 package ZenodoAddon.Graph.Pgx
 
-import java.util.Properties
-import java.util.concurrent.atomic.AtomicInteger
-
 import ZenodoAddon.Graph.GraphNormalizer
 import edu.stanford.nlp.ling.CoreAnnotations.{LemmaAnnotation, PartOfSpeechAnnotation, SentencesAnnotation, TokensAnnotation}
 import edu.stanford.nlp.pipeline.{Annotation, StanfordCoreNLP}
 import oracle.pgx.api.filter.EdgeFilter
 import oracle.pgx.api.{EdgeSet, GraphBuilder, PgxEdge, PgxGraph}
 import oracle.pgx.common.types.IdType
-
+import java.util.Properties
+import java.util.concurrent.atomic.AtomicInteger
 import scala.collection.JavaConverters
 import scala.util.control.Exception
 

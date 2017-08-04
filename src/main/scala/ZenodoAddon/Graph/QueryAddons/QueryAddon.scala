@@ -1,9 +1,10 @@
 package ZenodoAddon.Graph.QueryAddons
 
 import ZenodoAddon.Graph.{
-  NRequest,
-  Response
+  NKeywordRecommendRequest,
+  KeywordRecommendResponse
 }
+
 
 /**
   * QueryAddon overlays over a query execution, allowing us to add
@@ -12,11 +13,8 @@ import ZenodoAddon.Graph.{
 trait QueryAddon extends AutoCloseable
 {
 
-  def pipeline[
-    RequestSubtype <: NRequest[_],
-    ResponseSubtype <: Response
-  ](requestPacket: RequestSubtype,
-    queryExecution: () => ResponseSubtype):
-  (ResponseSubtype, Map[String, String])
+  def pipeline(requestPacket: NKeywordRecommendRequest[_],
+               queryExecution: () => KeywordRecommendResponse):
+  (KeywordRecommendResponse, Map[String, String])
 
 }
