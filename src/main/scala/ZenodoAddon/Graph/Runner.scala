@@ -1,29 +1,37 @@
 package ZenodoAddon.Graph
-
-import oracle.pgx.api.PgxGraph
+import ZenodoAddon.Graph.QueryAddons.AddonsDirectory
+import ZenodoAddon.{EnvironmentArgsRecord, Utils}
 
 import scala.util.Try
 
-sealed trait Request
+abstract class Request(
+  addons: List[String]
+)
 case class KeywordRecommendRequest(
-  normalizer: Option[String],
+  addons: List[String],
+  keyword: String,
   ranker: String,
-  recommendationCount: Int = 5,
-  keyword: String
-) extends Request
+  normalizer: Option[String],
+  take: Int
+) extends Request(addons)
 
-sealed trait NRequest
-case class NKeywordRecommendRequest(
- normalizer: Option[GraphNormalizer[PgxGraph]],
- ranker: Option[KeywordProximityRanker[PgxGraph]],
- recommendationCount: Int,
- keyword: String
-) extends NRequest
+abstract class NRequest[GraphType](
+  addons: List[String]
+)
+case class NKeywordRecommendRequest[GraphType]
+(
+  addons: List[String],
+  keyword: String,
+  ranker: Option[KeywordProximityRanker[GraphType]],
+  normalizer: Option[GraphNormalizer[GraphType]],
+  take: Int
+) extends NRequest[GraphType](addons)
 
 sealed trait Response
 case class KeywordRecommendResponse(
  isSuccessful: Boolean,
  message: Option[String],
+ addonsMetadata: Map[String, Map[String, String]] = Map(),
  result: Option[List[String]]
 ) extends Response
 
@@ -35,100 +43,111 @@ case class KeywordRecommendResponse(
   * Above this step, no knowledge about any graph engine implementation
   * should leak out. This is in essence, the "main" of the Graph
   * package
+  *
+  * Different Graph Runners could be created for different graph engines,
+  * not just PGX. This allows even for a runtime running of different
+  * graph engines - not just PGX. All that is required is:
+  *
+  * GraphType - type used by the graph engine to represent a graph
+  * SessionControl - an instance that implements the SessionControl trait,
+  *   which encapsulates a graph querying/manipulation session
   */
-class Runner
+abstract class Runner[GraphType]
+(
+  sessionControl: SessionControl[_, GraphType]
+) extends AutoCloseable
 {
-  private val sessionControl = new PgxSessionControl
 
-  def startup(graphEngineDsn: String,
-              graphSettingsFilePath: String) = Try({
-    sessionControl.initializeSession(graphEngineDsn)
-    sessionControl.loadSettings(graphSettingsFilePath)
+  private var addonsDirectory: Option[AddonsDirectory] = None
+
+  def startup(environmentArgs: EnvironmentArgsRecord) = Try({
+    sessionControl.initializeSession(environmentArgs.graphEngineDsn)
+    sessionControl.loadSettings(environmentArgs.graphSettingsFile)
+    addonsDirectory = Some(new AddonsDirectory(environmentArgs))
   })
 
-  def query(request: Request) = Try({
-    def getClassObjectFromString(className: String,
-                                 traitClass: Class[_]): Option[Class[_]] = {
-      try {
-        val classObject = Class.forName(className)
+  private def normalizeRequest(request: Request): NRequest[GraphType] =
+    request match {
+      case KeywordRecommendRequest(
+        addons, keyword, ranker, normalizerOption, take
+      ) => {
+        val normalizerInstanceOption =
+          normalizerOption.flatMap(
+            Utils.getInstanceObjectFromString[
+                GraphNormalizer[GraphType]
+              ]
+          )
+        val rankerInstanceOption =
+          Utils.getInstanceObjectFromString[
+              KeywordProximityRanker[GraphType]
+            ](ranker)
 
-        if (traitClass.isAssignableFrom(classObject)) Some(classObject)
-        else None
-      } catch {
-        case _:ClassNotFoundException => None
+        NKeywordRecommendRequest[GraphType](
+          addons = addons,
+          keyword = keyword,
+          ranker = rankerInstanceOption,
+          normalizer = normalizerInstanceOption,
+          take = take
+        )
       }
     }
-    def normalizeRequest(request: Request): NRequest = request match {
-      case KeywordRecommendRequest(
-        normalizerOption,
-        ranker,
-        recommendationCount,
-        keyword
-      ) => {
-        val normalizerInstOpt: Option[GraphNormalizer[PgxGraph]] =
-          normalizerOption
-            .flatMap(normalizer => getClassObjectFromString(
-              normalizer,
-              classOf[GraphNormalizer[PgxGraph]]
-            ))
-            .map(normalizerClass => normalizerClass
-              .newInstance
-              .asInstanceOf[GraphNormalizer[PgxGraph]])
-        val rankerInstOpt: Option[KeywordProximityRanker[PgxGraph]] =
-        {
-          val rankerClassOption = getClassObjectFromString(
-            ranker,
-            classOf[KeywordProximityRanker[PgxGraph]]
-          )
 
-          rankerClassOption.map(rankerClass => rankerClass
-            .newInstance
-            .asInstanceOf[KeywordProximityRanker[PgxGraph]]
+  def query(request: Request) = Try({
+    normalizeRequest(request) match {
+      case NKeywordRecommendRequest(
+        _, _, None, _, _
+      ) =>
+        KeywordRecommendResponse(
+          isSuccessful = false,
+          message = Some("No valid ranker execution type provided"),
+          result = None
+        )
+
+      case NKeywordRecommendRequest(
+        addons, keyword, Some(ranker), Some(normalizer), take
+      ) =>
+        sessionControl.transformGraph(normalizer)
+        val result = ranker.rank(sessionControl.getGraph, keyword, take)
+        KeywordRecommendResponse(
+          isSuccessful = true,
+          message = Some("Success"),
+          result = Some(result)
+        )
+
+      case requestPacket @ NKeywordRecommendRequest(
+        addons, keyword, Some(ranker), None, take
+      ) =>
+        val originalExecution: () => KeywordRecommendResponse = () => {
+          val results = ranker.rank(sessionControl.getGraph, keyword, take)
+          KeywordRecommendResponse(
+            isSuccessful = true,
+            message = Some("Success"),
+            result = Some(results)
           )
         }
 
-        NKeywordRecommendRequest(
-          normalizerInstOpt, rankerInstOpt,
-          recommendationCount, keyword
-        )
-      }
-    }
+        val (composedExecution, addonsMetadata) = addons
+          .flatMap(addonsDirectory.get.getAddon(_))
+          .foldLeft((originalExecution, Map[String, Map[String, String]]()))(
+            (accumulated, queryAddonTuple) => {
+              val (composedExecution, addonResultsMetadata) = accumulated
+              val (queryAddonObject, queryAddonName) = queryAddonTuple
+              val (newComposedExecution, addonResultMetadata) =
+                queryAddonObject.pipeline(requestPacket, composedExecution)
+              (() => newComposedExecution,
+                addonResultsMetadata + (queryAddonName -> addonResultMetadata))
+          })
 
-    normalizeRequest(request) match {
-      case NKeywordRecommendRequest(_, None, _, _) =>
-        KeywordRecommendResponse(
-          isSuccessful = false,
-          Some("No valid ranker execution type provided"),
-          None
+        val keywordRecommendResponse = composedExecution()
+        keywordRecommendResponse.copy(
+          addonsMetadata = addonsMetadata
         )
-      case NKeywordRecommendRequest(Some(n), Some(r), take, keyword) => {
-        sessionControl.transformGraph(n.normalize)
-        val result = r.rank(sessionControl.getGraph, keyword)
-          .toList
-          .take(take)
-          .map(tuplet => tuplet._1)
-        KeywordRecommendResponse(
-          isSuccessful = true,
-          Some("Success"),
-          Some(result)
-        )
-      }
-      case NKeywordRecommendRequest(None, Some(r), take, keyword) => {
-        val result = r.rank(sessionControl.getGraph, keyword)
-          .toList
-          .take(take)
-          .map(tuplet => tuplet._1)
-        KeywordRecommendResponse(
-          isSuccessful = true,
-          Some("Success"),
-          Some(result)
-        )
-      }
     }
   })
 
-  def shutdown() = Try({
+  def close() = {
+    addonsDirectory.get.close()
     sessionControl.destroySession()
-  })
+  }
 
 }
