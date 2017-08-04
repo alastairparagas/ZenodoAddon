@@ -45,8 +45,8 @@ class StartupArgs
       } else {
         val pattern = Pattern.compile(
           "^\\/$|" +
-            "(^(?=\\/)|^\\.|^\\.\\.)(\\/(?=[^/\0])" +
-            "[^/\0]+)*\\/?$"
+            "(^(?=\\/)|^\\.|^\\.\\.)(\\/(?=[^/\u0000])" +
+            "[^/\u0000]+)*\\/?$"
         )
         pattern.matcher(absFilePath).matches
       }
