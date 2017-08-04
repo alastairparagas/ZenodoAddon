@@ -1,8 +1,9 @@
 package ZenodoAddon.Graph.QueryAddons
 
 import ZenodoAddon.Graph.{
-  NKeywordRecommendRequest,
-  KeywordRecommendResponse
+  KeywordProximityRanker,
+  KeywordRecommendResponse,
+  NKeywordRecommendRequest
 }
 import ZenodoAddon.EnvironmentArgsRecord
 import java.time.Instant
@@ -27,29 +28,35 @@ class CacheAddon(environmentArgs: EnvironmentArgsRecord) extends QueryAddon
     )
   }
 
+  private def cacheKeywordRecommendationInRedis
+  (
+    keyword: String,
+    ranker: KeywordProximityRanker[_],
+    take: Int,
+    results: List[String]
+  ): Unit = Future {
+    redisPoolOption.get.withClient(client => {
+      val cacheKey =
+        s"krr,${keyword},${ranker.getClass.getName},${take}"
+      results.foreach(result => client.rpush(
+        cacheKey, result
+      ))
+
+      client.hmset("cache-ages", Map(
+        cacheKey -> Instant.now().toEpochMilli
+      ))
+    })
+  }
+
   def pipeline
   (
     requestPacket: NKeywordRecommendRequest[_],
-    queryExecution: Function0[KeywordRecommendResponse]
+    queryExecution: (() => KeywordRecommendResponse)
   ): (KeywordRecommendResponse, Map[String, String]) = {
 
     val keyword = requestPacket.keyword
     val ranker = requestPacket.ranker.get
     val take = requestPacket.take
-
-    def cacheResultInRedis(results: List[String]) = Future {
-      redisPoolOption.get.withClient(client => {
-        val cacheKey =
-          s"krr,${keyword},${ranker.getClass.getName},${take}"
-        results.foreach(result => client.rpush(
-          cacheKey, result
-        ))
-
-        client.hmset("cache-ages", Map(
-          cacheKey -> Instant.now().toEpochMilli
-        ))
-      })
-    }
 
     val (cachedResults, cacheAge) = {
       var cachedResultOption: Option[List[Option[String]]] = None
@@ -95,7 +102,10 @@ class CacheAddon(environmentArgs: EnvironmentArgsRecord) extends QueryAddon
 
     if (cachedResults.isEmpty) {
       val queryExecutionResponse = queryExecution()
-      queryExecutionResponse.result.map(results => cacheResultInRedis(results))
+      queryExecutionResponse.result
+        .foreach(results => cacheKeywordRecommendationInRedis(
+          keyword, ranker, take, results
+        ))
       (queryExecutionResponse, Map("cache-age" -> cacheAge.toString))
     } else (
       KeywordRecommendResponse(
@@ -105,6 +115,25 @@ class CacheAddon(environmentArgs: EnvironmentArgsRecord) extends QueryAddon
       ), Map("cache-age" -> cacheAge.toString))
   }
 
-  def close() = redisPoolOption.map(_.close).get
+  def unconditionalPipeline
+  (
+    requestPacket: NKeywordRecommendRequest[_],
+    queryExecution: (() => KeywordRecommendResponse)
+  ): KeywordRecommendResponse = {
+    val keyword = requestPacket.keyword
+    val ranker = requestPacket.ranker.get
+    val take = requestPacket.take
+
+    val keywordRecommendResponse = queryExecution.apply()
+    keywordRecommendResponse.result match {
+      case Some(result) => cacheKeywordRecommendationInRedis(
+        keyword, ranker, take, result)
+      case None => Unit
+    }
+
+    keywordRecommendResponse
+  }
+
+  def close() = redisPoolOption.foreach(_.close)
 
 }

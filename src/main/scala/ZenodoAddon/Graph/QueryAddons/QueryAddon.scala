@@ -17,4 +17,8 @@ trait QueryAddon extends AutoCloseable
                queryExecution: () => KeywordRecommendResponse):
   (KeywordRecommendResponse, Map[String, String])
 
+  def unconditionalPipeline(requestPacket: NKeywordRecommendRequest[_],
+                            queryExecution: () => KeywordRecommendResponse):
+  KeywordRecommendResponse
+
 }

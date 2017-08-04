@@ -118,18 +118,35 @@ abstract class Runner[GraphType]
       case requestPacket @ NKeywordRecommendRequest(
         addons, keyword, Some(ranker), None, take
       ) =>
-        val originalExecution: () => KeywordRecommendResponse = () => {
-          val results = ranker.rank(sessionControl.getGraph, keyword, take)
-          KeywordRecommendResponse(
-            isSuccessful = true,
-            message = Some("Success"),
-            result = Some(results)
-          )
+        val addonsDirectoryInstance = addonsDirectory.get
+
+        val overlayedExecution: () => KeywordRecommendResponse = {
+          val originalExecution = () => {
+            val results = ranker.rank(sessionControl.getGraph, keyword, take)
+            KeywordRecommendResponse(
+              isSuccessful = true,
+              message = Some("Success"),
+              result = Some(results)
+            )
+          }
+
+          () => {
+            val keywordRecommendResponse = originalExecution.apply()
+            addonsDirectoryInstance
+              .allAddons()
+              .foldLeft(keywordRecommendResponse)(
+                (keywordRecommendResponse, addon) => {
+                  addon.unconditionalPipeline(
+                    requestPacket,
+                    () => keywordRecommendResponse
+                  )
+                })
+          }
         }
 
         val (composedExecution, addonsMetadata) = addons
-          .flatMap(addonsDirectory.get.getAddon(_))
-          .foldLeft((originalExecution, Map[String, Map[String, String]]()))(
+          .flatMap(addonsDirectoryInstance.getAddon)
+          .foldLeft((overlayedExecution, Map[String, Map[String, String]]()))(
             (accumulated, queryAddonTuple) => {
               val (composedExecution, addonResultsMetadata) = accumulated
               val (queryAddonObject, queryAddonName) = queryAddonTuple
