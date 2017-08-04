@@ -1,14 +1,15 @@
-package ZenodoAddon.Graph
+package ZenodoAddon.Graph.Pgx
 
 import java.time.Instant
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.locks.ReentrantReadWriteLock
 
+import ZenodoAddon.Graph.{GraphNormalizer, SessionControl}
 import oracle.pgx.api.{Pgx, PgxGraph, PgxSession}
 
 
 /**
-  * A thread-safe wrapper around a graph-engine session where we can
+  * A thread-safe wrapper around a graph engine session where we can
   * transform a loaded graph or obtain a copy of it
   */
 class PgxSessionControl extends SessionControl[PgxSession, PgxGraph]
@@ -112,6 +113,9 @@ class PgxSessionControl extends SessionControl[PgxSession, PgxGraph]
       mainGraphLock.writeLock().unlock()
     }
   }
+
+  def transformGraph(normalizer: GraphNormalizer[PgxGraph]): Unit =
+    transformGraph(normalizer.normalize _)
 
   /**
     * Destroy the session with the Graph Engine Server
