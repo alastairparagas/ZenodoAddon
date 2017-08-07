@@ -65,37 +65,40 @@ object Main extends App
 
     def recommendationHandler(request: Request,
                               response: Response) : KeywordRecommendResponse = {
-      if (request.contentType() != "application/json")
+      response.`type`("application/json")
+
+      if (request.contentType() != "application/json") {
         KeywordRecommendResponse(
           isSuccessful = false,
           message = Some("Payload must be JSON"),
           result = None
         )
-
-      response.`type`("application/json")
-
-      val keywordRecommendRequestOption: Option[KeywordRecommendRequest] =
-        Parse.decodeOption[KeywordRecommendRequest](request.body)
-
-      if (keywordRecommendRequestOption.isEmpty) {
-        KeywordRecommendResponse(
-          isSuccessful = false,
-          message = Some("Invalid JSON payload"),
-          result = None
-        )
       } else {
-        Try({keywordRecommendRequestOption.get})
-          .flatMap(keywordRecommendReq => graphRunner.query(
-            keywordRecommendReq
-          ))
-          .recover({
-            case error: Throwable => KeywordRecommendResponse(
-              isSuccessful = false,
-              message = Some(error.getMessage),
-              result = None
-            )
+        val keywordRecommendRequestOption: Option[KeywordRecommendRequest] =
+          Parse.decodeOption[KeywordRecommendRequest](request.body)
+
+        if (keywordRecommendRequestOption.isEmpty) {
+          KeywordRecommendResponse(
+            isSuccessful = false,
+            message = Some("Invalid JSON payload"),
+            result = None
+          )
+        } else {
+          Try({
+            keywordRecommendRequestOption.get
           })
-          .get
+            .flatMap(keywordRecommendReq => graphRunner.query(
+              keywordRecommendReq
+            ))
+            .recover({
+              case error: Throwable => KeywordRecommendResponse(
+                isSuccessful = false,
+                message = Some(error.getMessage),
+                result = None
+              )
+            })
+            .get
+        }
       }
     }
 
