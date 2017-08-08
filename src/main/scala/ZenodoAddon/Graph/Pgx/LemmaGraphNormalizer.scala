@@ -59,6 +59,8 @@ class LemmaGraphNormalizer extends GraphNormalizer[PgxGraph]
     )
 
     docToKeywordEdges
+      .toStream
+      .par
       .foreach((docToKeywordEdge: PgxEdge) => {
         val documentId: String = docToKeywordEdge.getSource.getId
         val keyword: String = docToKeywordEdge.getDestination.getId
