@@ -1,12 +1,10 @@
 package ZenodoAddon.Graph.QueryAddons
 
-import ZenodoAddon.Graph.{
-  KeywordProximityRanker,
-  KeywordRecommendResponse,
-  NKeywordRecommendRequest
-}
-import ZenodoAddon.EnvironmentArgsRecord
+import ZenodoAddon.Graph.{KeywordProximityRanker, KeywordRecommendResponse, NKeywordRecommendRequest}
 import java.time.Instant
+
+import ZenodoAddon.EnvironmentArgs.EnvironmentArgsRecord
+
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 import com.redis.RedisClientPool

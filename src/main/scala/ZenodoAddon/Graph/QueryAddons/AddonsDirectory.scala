@@ -1,6 +1,6 @@
 package ZenodoAddon.Graph.QueryAddons
 
-import ZenodoAddon.EnvironmentArgsRecord
+import ZenodoAddon.EnvironmentArgs.EnvironmentArgsRecord
 
 
 class AddonsDirectory(environmentArgs: EnvironmentArgsRecord)

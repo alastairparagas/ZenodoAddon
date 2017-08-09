@@ -1,10 +1,9 @@
 package ZenodoAddon
 
-import ZenodoAddon.Graph.{
-  KeywordRecommendRequest,
-  KeywordRecommendResponse
-}
+import ZenodoAddon.EnvironmentArgs.{EnvironmentArgsRecord, Runner}
+import ZenodoAddon.Graph.{KeywordRecommendRequest, KeywordRecommendResponse}
 import ZenodoAddon.Graph.Pgx.PgxRunner
+
 import scala.util.Try
 import argonaut._
 import argonaut.Argonaut._
@@ -15,7 +14,7 @@ import spark.Spark.{initExceptionHandler, port, post, stop}
 object Main extends App
 {
 
-  new StartupArgs()
+  new Runner()
     .run(args)
     .map(environmentArgs => {
       port(environmentArgs.port)

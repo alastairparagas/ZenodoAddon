@@ -1,7 +1,9 @@
 package ZenodoAddon.Graph
 
+import ZenodoAddon.EnvironmentArgs.EnvironmentArgsRecord
 import ZenodoAddon.Graph.QueryAddons.AddonsDirectory
-import ZenodoAddon.{EnvironmentArgsRecord, Utils}
+import ZenodoAddon.Utils
+
 import scala.util.Try
 
 
