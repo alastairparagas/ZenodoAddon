@@ -12,7 +12,7 @@ class PPRKeywordProximityRanker extends KeywordProximityRanker[PgxGraph]
     * Run Personalized Page Rank to see how well related a keyword is to
     * all the other keywords
     * @param graph: PgxGraph
-    * @return Iterator[String, Double]
+    * @return List[String]
     */
   def rank(graph: PgxGraph, keyword: String, take: Int) = {
 
