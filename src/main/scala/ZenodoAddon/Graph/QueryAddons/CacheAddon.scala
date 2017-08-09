@@ -29,7 +29,7 @@ class CacheAddon(environmentArgs: EnvironmentArgsRecord) extends QueryAddon
   private def cacheKeywordRecommendationInRedis
   (
     keyword: String,
-    ranker: KeywordProximityRanker[_],
+    ranker: KeywordProximityRanker[_, _],
     take: Int,
     results: List[String]
   ): Unit = Future {
@@ -68,7 +68,7 @@ class CacheAddon(environmentArgs: EnvironmentArgsRecord) extends QueryAddon
 
   def pipeline
   (
-    requestPacket: NKeywordRecommendRequest[_],
+    requestPacket: NKeywordRecommendRequest[_, _],
     queryExecution: (() => KeywordRecommendResponse)
   ): (KeywordRecommendResponse, Map[String, String]) = {
 
@@ -134,7 +134,7 @@ class CacheAddon(environmentArgs: EnvironmentArgsRecord) extends QueryAddon
 
   def unconditionalPipeline
   (
-    requestPacket: NKeywordRecommendRequest[_],
+    requestPacket: NKeywordRecommendRequest[_, _],
     queryExecution: (() => KeywordRecommendResponse)
   ): KeywordRecommendResponse = {
     val keyword = requestPacket.keyword

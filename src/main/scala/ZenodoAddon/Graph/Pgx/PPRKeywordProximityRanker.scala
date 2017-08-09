@@ -29,28 +29,29 @@ class PPRKeywordProximityRanker extends
     if (keywordVerticesStream.isEmpty) List()
     else {
       val documentVertex: PgxVertex[String] =
-        keywordVerticesStream
-          .lift(1)
-          .get
+        keywordVerticesStream.iterator.next()
 
-      val analyst = graph.getSession.createAnalyst
+      val analyst = graph.getSession.createAnalyst()
 
       val personalizedPageRankProp = analyst.personalizedPagerank(
         graph, documentVertex, 0.00001, 0.85, 5000, true
       )
 
-      val result = JavaConverters.asScalaIterator(
-        personalizedPageRankProp
-          .getTopKValues(take + 1)
-          .iterator
-      )
-        .filter(graphVertex =>
-          graphVertex.getKey.getProperty("type").equals(keyword)
+      val resultsIterator = for {
+        tuplet <- JavaConverters.asScalaIterator(
+          personalizedPageRankProp
+            .getTopKValues(take + 1)
+            .iterator
         )
-        .map(_.getKey.getId)
-        .toList
+        vertexType = tuplet.getKey.getProperty[String]("type")
+        vertexId = tuplet.getKey.getId
+        if vertexType.equals("keyword")
+        if !vertexId.equalsIgnoreCase(keyword)
+      } yield vertexId
+      val results = resultsIterator.toList
+
       analyst.destroy()
-      result
+      results
     }
   }
 

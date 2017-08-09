@@ -45,16 +45,18 @@ object Main extends App
     DecodeJson[KeywordRecommendRequest] =
       DecodeJson((c: HCursor) => {
         for {
-          ranker <- (c --\ "ranker").as[Option[String]]
-          keyword <- (c --\ "keyword").as[Option[String]]
+          ranker <- (c --\ "ranker").as[String]
+          vertexFinder <- (c --\ "vertexFinder").as[String]
+          keyword <- (c --\ "keyword").as[String]
           normalizer <- (c --\ "normalizer").as[Option[String]]
           count <- (c --\ "count").as[Option[Int]]
           addons <- (c --\ "addons").as[Option[List[String]]]
         } yield KeywordRecommendRequest(
           normalizer=normalizer,
-          ranker=ranker.get,
+          ranker=ranker,
+          vertexFinder=vertexFinder,
           addons=addons.getOrElse(List()),
-          keyword=keyword.get,
+          keyword=keyword,
           take=count.getOrElse(5)
         )
       })
@@ -73,8 +75,10 @@ object Main extends App
           result = None
         )
       } else {
+        val jsonBody = request.body
+
         val keywordRecommendRequestOption: Option[KeywordRecommendRequest] =
-          Parse.decodeOption[KeywordRecommendRequest](request.body)
+          Parse.decodeOption[KeywordRecommendRequest](jsonBody)
 
         if (keywordRecommendRequestOption.isEmpty) {
           KeywordRecommendResponse(

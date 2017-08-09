@@ -29,7 +29,7 @@ class PlainKeywordVertexFinder extends
     else
       JavaConverters.asScalaIterator(
         graph.queryPgql(
-          "SELECT d " +
+          "SELECT x " +
             "WHERE " +
             "(x WITH type='keyword' AND id() =~ '" + keyword + "')"
         ).getResults.iterator

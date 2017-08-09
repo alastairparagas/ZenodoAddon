@@ -13,11 +13,11 @@ import ZenodoAddon.Graph.{
 trait QueryAddon extends AutoCloseable
 {
 
-  def pipeline(requestPacket: NKeywordRecommendRequest[_],
+  def pipeline(requestPacket: NKeywordRecommendRequest[_, _],
                queryExecution: () => KeywordRecommendResponse):
   (KeywordRecommendResponse, Map[String, String])
 
-  def unconditionalPipeline(requestPacket: NKeywordRecommendRequest[_],
+  def unconditionalPipeline(requestPacket: NKeywordRecommendRequest[_, _],
                             queryExecution: () => KeywordRecommendResponse):
   KeywordRecommendResponse
 

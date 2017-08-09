@@ -14,21 +14,23 @@ case class KeywordRecommendRequest(
   addons: List[String],
   keyword: String,
   ranker: String,
+  vertexFinder: String,
   normalizer: Option[String],
   take: Int
 ) extends Request(addons)
 
-abstract class NRequest[GraphType](
+abstract class NRequest[GraphType, VertexType](
   addons: List[String]
 )
-case class NKeywordRecommendRequest[GraphType]
+case class NKeywordRecommendRequest[GraphType, VertexType]
 (
   addons: List[String],
   keyword: String,
-  ranker: Option[KeywordProximityRanker[GraphType]],
+  ranker: Option[KeywordProximityRanker[GraphType, VertexType]],
+  vertexFinder: Option[KeywordVertexFinder[VertexType, GraphType]],
   normalizer: Option[GraphNormalizer[GraphType]],
   take: Int
-) extends NRequest[GraphType](addons)
+) extends NRequest[GraphType, VertexType](addons)
 
 sealed trait Response
 case class KeywordRecommendResponse(
@@ -55,7 +57,7 @@ case class KeywordRecommendResponse(
   * SessionControl - an instance that implements the SessionControl trait,
   *   which encapsulates a graph querying/manipulation session
   */
-abstract class Runner[GraphType]
+abstract class Runner[GraphType, VertexType]
 (
   sessionControl: SessionControl[_, GraphType]
 ) extends AutoCloseable
@@ -69,10 +71,11 @@ abstract class Runner[GraphType]
     addonsDirectory = Some(new AddonsDirectory(environmentArgs))
   })
 
-  private def normalizeRequest(request: Request): NRequest[GraphType] =
+  private def normalizeRequest(request: Request):
+  NRequest[GraphType, VertexType] =
     request match {
       case KeywordRecommendRequest(
-        addons, keyword, ranker, normalizerOption, take
+        addons, keyword, ranker, vertexFinder, normalizerOption, take
       ) => {
         val normalizerInstanceOption =
           normalizerOption.flatMap(
@@ -80,15 +83,20 @@ abstract class Runner[GraphType]
                 GraphNormalizer[GraphType]
               ]
           )
+        val vertexFinderInstanceOption =
+          Utils.getInstanceObjectFromString[
+            KeywordVertexFinder[VertexType, GraphType]
+            ](vertexFinder)
         val rankerInstanceOption =
           Utils.getInstanceObjectFromString[
-              KeywordProximityRanker[GraphType]
+              KeywordProximityRanker[GraphType, VertexType]
             ](ranker)
 
-        NKeywordRecommendRequest[GraphType](
+        NKeywordRecommendRequest[GraphType, VertexType](
           addons = addons,
           keyword = keyword,
           ranker = rankerInstanceOption,
+          vertexFinder = vertexFinderInstanceOption,
           normalizer = normalizerInstanceOption,
           take = take
         )
@@ -98,7 +106,7 @@ abstract class Runner[GraphType]
   def query(request: Request) = Try({
     normalizeRequest(request) match {
       case NKeywordRecommendRequest(
-        _, _, None, _, _
+        _, _, None, _, _, _
       ) =>
         KeywordRecommendResponse(
           isSuccessful = false,
@@ -107,10 +115,25 @@ abstract class Runner[GraphType]
         )
 
       case NKeywordRecommendRequest(
-        addons, keyword, Some(ranker), Some(normalizer), take
+        _, _, _, None, _, _
+      ) =>
+        KeywordRecommendResponse(
+          isSuccessful = false,
+          message = Some("No valid vertex finder provided"),
+          result = None
+        )
+
+      case NKeywordRecommendRequest(
+        addons, keyword, Some(ranker),
+        Some(vertexFinder), Some(normalizer), take
       ) =>
         sessionControl.transformGraph(normalizer)
-        val result = ranker.rank(sessionControl.getGraph, keyword, take)
+        val result = ranker.rank(
+          sessionControl.getGraph,
+          keyword,
+          vertexFinder,
+          take
+        )
         KeywordRecommendResponse(
           isSuccessful = true,
           message = Some("Success"),
@@ -118,13 +141,19 @@ abstract class Runner[GraphType]
         )
 
       case requestPacket @ NKeywordRecommendRequest(
-        addons, keyword, Some(ranker), None, take
+        addons, keyword, Some(ranker),
+        Some(vertexFinder), None, take
       ) =>
         val addonsDirectoryInstance = addonsDirectory.get
 
         val overlayedExecution: () => KeywordRecommendResponse = {
           val originalExecution = () => {
-            val results = ranker.rank(sessionControl.getGraph, keyword, take)
+            val results = ranker.rank(
+              sessionControl.getGraph,
+              keyword,
+              vertexFinder,
+              take
+            )
             KeywordRecommendResponse(
               isSuccessful = true,
               message = Some("Success"),

@@ -40,10 +40,10 @@ class PPRKeywordProximityMeanRanker extends
 
       val ranks = keywordVerticesStream
         .par
-        .flatMap(documentVertex => {
+        .flatMap(keywordVertex => {
           val personalizedPageRankProp =
             analyst.personalizedPagerank(
-              graph, documentVertex, 0.00001, 0.85, 5000, true
+              graph, keywordVertex, 0.00001, 0.85, 5000, true
             )
 
           val results = for {
