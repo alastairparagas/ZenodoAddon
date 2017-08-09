@@ -1,11 +1,13 @@
 package ZenodoAddon.Graph.Pgx
 
-import ZenodoAddon.Graph.KeywordProximityRanker
-import oracle.pgx.api.{PgqlResult, PgxGraph, PgxVertex}
+import ZenodoAddon.Graph.{KeywordProximityRanker, KeywordVertexFinder}
+import oracle.pgx.api.{PgxGraph, PgxVertex}
+
 import scala.collection.JavaConverters
 
 
-class PPRKeywordProximityRanker extends KeywordProximityRanker[PgxGraph]
+class PPRKeywordProximityRanker extends
+  KeywordProximityRanker[PgxGraph, PgxVertex[String]]
 {
 
   /**
@@ -14,37 +16,22 @@ class PPRKeywordProximityRanker extends KeywordProximityRanker[PgxGraph]
     * @param graph: PgxGraph
     * @return List[String]
     */
-  def rank(graph: PgxGraph, keyword: String, take: Int) = {
+  def rank(graph: PgxGraph,
+           keyword: String,
+           keywordVertexFinder: KeywordVertexFinder[
+             PgxVertex[String],
+             PgxGraph
+             ],
+           take: Int) = {
 
-    val pgqlResultIterator: Iterator[PgqlResult] = {
-      val pgqlResultIterator = JavaConverters.asScalaIterator(
-        graph.queryPgql(
-          "SELECT z " +
-            "WHERE " +
-            "(x WITH type='keyword' AND id() = '" + keyword + "')" +
-            " <-- (z WITH type='document')"
-        ).getResults.iterator
-      )
+    val keywordVerticesStream = keywordVertexFinder.find(keyword, graph)
 
-      if (pgqlResultIterator.hasNext) pgqlResultIterator
-      else {
-        JavaConverters.asScalaIterator(
-          graph.queryPgql(
-            "SELECT z " +
-              "WHERE " +
-              "(x WITH type='keyword' AND id() =~ '" + keyword + "')" +
-              " <-- (z WITH type='document' AND outDegree() >= 2)"
-          ).getResults.iterator
-        )
-      }
-    }
-
-    if (pgqlResultIterator.isEmpty) List()
+    if (keywordVerticesStream.isEmpty) List()
     else {
       val documentVertex: PgxVertex[String] =
-        pgqlResultIterator
-          .next
-          .getVertex("z")
+        keywordVerticesStream
+          .lift(1)
+          .get
 
       val analyst = graph.getSession.createAnalyst
 
