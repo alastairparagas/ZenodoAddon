@@ -28,13 +28,13 @@ class PPRKeywordProximityRanker extends
 
     if (keywordVerticesStream.isEmpty) List()
     else {
-      val documentVertex: PgxVertex[String] =
+      val keywordVertex: PgxVertex[String] =
         keywordVerticesStream.iterator.next()
 
       val analyst = graph.getSession.createAnalyst()
 
       val personalizedPageRankProp = analyst.personalizedPagerank(
-        graph, documentVertex, 0.00001, 0.85, 5000, true
+        graph, keywordVertex, 0.00001, 0.85, 5000, true
       )
 
       val resultsIterator = for {
