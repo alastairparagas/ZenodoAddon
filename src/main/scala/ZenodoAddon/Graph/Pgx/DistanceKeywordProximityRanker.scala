@@ -2,7 +2,7 @@ package ZenodoAddon.Graph.Pgx
 
 import ZenodoAddon.Graph.{KeywordProximityRanker, KeywordVertexFinder}
 import oracle.pgx.api.filter.VertexFilter
-import oracle.pgx.api.{PgxEdge, PgxGraph, PgxVertex}
+import oracle.pgx.api.{PgxGraph, PgxVertex}
 import oracle.pgx.common.types.PropertyType
 
 import scala.collection.JavaConverters
@@ -57,7 +57,7 @@ class DistanceKeywordProximityRanker extends
       val resultsIterator = for {
         tuplet <- JavaConverters.asScalaIterator(
           distanceProp
-            .getBottomKValues(take + 1)
+            .getBottomKValues(take)
             .iterator
         )
         vertexId = tuplet.getKey.getId

@@ -31,9 +31,9 @@ class PPRKeywordProximityMeanRanker extends
 
       val keywordsPerDocumentVertex = Math.pow(Math.max(Math.ceil(
         take.toDouble / keywordVerticesStream.size.toDouble
-      ), 2.0), 2.0).toInt
+      ), 1), 2.0).toInt
       val neededDocumentVerticesStreamSize = Math.ceil(
-        take.toDouble / (keywordsPerDocumentVertex - 1).toDouble
+        take.toDouble / keywordsPerDocumentVertex.toDouble
       ).toInt
 
       val analyst = graph.getSession.createAnalyst()

@@ -40,7 +40,7 @@ class PPRKeywordProximityRanker extends
       val resultsIterator = for {
         tuplet <- JavaConverters.asScalaIterator(
           personalizedPageRankProp
-            .getTopKValues(take + 1)
+            .getTopKValues(take)
             .iterator
         )
         vertexType = tuplet.getKey.getProperty[String]("type")
