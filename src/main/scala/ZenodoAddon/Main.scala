@@ -94,26 +94,31 @@ object Main extends App
               keywordRecommendReq
             ))
             .recover({
-              case error: Throwable => KeywordRecommendResponse(
-                isSuccessful = false,
-                message = Some(error.getMessage),
-                result = None
-              )
+              case error: Throwable => {
+                val errorString = error.getMessage
+                if (errorString == null) {
+                  KeywordRecommendResponse(
+                    isSuccessful = false,
+                    message = Some(error.toString),
+                    result = None
+                  )
+                } else {
+                  KeywordRecommendResponse(
+                    isSuccessful = false,
+                    message = Some(errorString),
+                    result = None
+                  )
+                }
+              }
             })
             .get
         }
       }
     }
 
-    initExceptionHandler(e => throw e)
-    Runtime.getRuntime.addShutdownHook(
-      new Thread(() => graphRunner.close())
-    )
-    post("/recommendation", (req, res) =>
-      KeywordRecommendResponseEncode.encode(
-        recommendationHandler(req, res)
-      )
-    )
+    post("/recommendation", (req, res) => KeywordRecommendResponseEncode.encode(
+      recommendationHandler(req, res)
+    ))
   }
 
 }
