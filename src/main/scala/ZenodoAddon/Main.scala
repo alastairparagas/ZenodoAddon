@@ -8,7 +8,7 @@ import scala.util.Try
 import argonaut._
 import argonaut.Argonaut._
 import spark.{Request, Response}
-import spark.Spark.{initExceptionHandler, port, post, stop}
+import spark.Spark.{port, post, stop}
 
 
 object Main extends App
@@ -47,7 +47,7 @@ object Main extends App
         for {
           ranker <- (c --\ "ranker").as[String]
           vertexFinder <- (c --\ "vertexFinder").as[String]
-          keyword <- (c --\ "keyword").as[String]
+          keyword <- (c --\ "keyword").as[List[String]]
           normalizer <- (c --\ "normalizer").as[Option[String]]
           count <- (c --\ "count").as[Option[Int]]
           addons <- (c --\ "addons").as[Option[List[String]]]

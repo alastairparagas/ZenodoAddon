@@ -4,7 +4,7 @@ package ZenodoAddon.Graph
 trait KeywordProximityRanker[GraphTypeVar, VertexTypeVar]
 {
   def rank(pgxGraph: GraphTypeVar,
-           keyword: String,
+           keyword: List[String],
            keywordVertexFinder: KeywordVertexFinder[
              VertexTypeVar,
              GraphTypeVar],

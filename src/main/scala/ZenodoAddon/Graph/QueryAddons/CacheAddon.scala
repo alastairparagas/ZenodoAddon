@@ -28,14 +28,14 @@ class CacheAddon(environmentArgs: EnvironmentArgsRecord) extends QueryAddon
 
   private def cacheKeywordRecommendationInRedis
   (
-    keyword: String,
+    keyword: List[String],
     ranker: KeywordProximityRanker[_, _],
     take: Int,
     results: List[String]
   ): Unit = Future {
     redisPoolOption.get.withClient(client => {
       val cacheKey =
-        s"krr,${keyword},${ranker.getClass.getName},${take}"
+        s"krr,${keyword.sorted.mkString(".")},${ranker.getClass.getName},${take}"
       results
         .foreach(result => client.rpush(cacheKey, result))
       client.hmset("cache-ages", Map(

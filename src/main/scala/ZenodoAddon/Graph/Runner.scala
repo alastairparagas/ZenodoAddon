@@ -12,7 +12,7 @@ abstract class Request(
 )
 case class KeywordRecommendRequest(
   addons: List[String],
-  keyword: String,
+  keyword: List[String],
   ranker: String,
   vertexFinder: String,
   normalizer: Option[String],
@@ -25,7 +25,7 @@ abstract class NRequest[GraphType, VertexType](
 case class NKeywordRecommendRequest[GraphType, VertexType]
 (
   addons: List[String],
-  keyword: String,
+  keyword: List[String],
   ranker: Option[KeywordProximityRanker[GraphType, VertexType]],
   vertexFinder: Option[KeywordVertexFinder[VertexType, GraphType]],
   normalizer: Option[GraphNormalizer[GraphType]],

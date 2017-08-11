@@ -17,14 +17,15 @@ class PPRKeywordProximityRanker extends
     * @return List[String]
     */
   def rank(graph: PgxGraph,
-           keyword: String,
+           keyword: List[String],
            keywordVertexFinder: KeywordVertexFinder[
              PgxVertex[String],
              PgxGraph
              ],
            take: Int) = {
 
-    val keywordVerticesStream = keywordVertexFinder.find(keyword, graph)
+    val keywordMod = keyword.lift(0).get
+    val keywordVerticesStream = keywordVertexFinder.find(keywordMod, graph)
 
     if (keywordVerticesStream.isEmpty) List()
     else {
@@ -46,7 +47,7 @@ class PPRKeywordProximityRanker extends
         vertexType = tuplet.getKey.getProperty[String]("type")
         vertexId = tuplet.getKey.getId
         if vertexType.equals("keyword")
-        if !vertexId.equalsIgnoreCase(keyword)
+        if !vertexId.equalsIgnoreCase(keywordMod)
       } yield vertexId
       val results = resultsIterator.toList
 
