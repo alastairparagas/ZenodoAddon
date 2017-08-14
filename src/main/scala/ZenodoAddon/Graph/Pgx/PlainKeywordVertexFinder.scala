@@ -1,13 +1,14 @@
 package ZenodoAddon.Graph.Pgx
 
+import ZenodoAddon.EnvironmentArgs.EnvironmentArgsRecord
 import ZenodoAddon.Graph.KeywordVertexFinder
 import oracle.pgx.api.{PgxGraph, PgxVertex}
 
 import scala.collection.JavaConverters
 
 
-class PlainKeywordVertexFinder extends
-  KeywordVertexFinder[PgxVertex[String], PgxGraph]
+class PlainKeywordVertexFinder(environmentArgsRecord: EnvironmentArgsRecord)
+  extends KeywordVertexFinder[PgxVertex[String], PgxGraph]
 {
 
   def find(keyword: String, graph: PgxGraph) = {

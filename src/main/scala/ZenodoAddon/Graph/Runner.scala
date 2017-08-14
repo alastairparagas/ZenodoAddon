@@ -64,11 +64,13 @@ abstract class Runner[GraphType, VertexType]
 {
 
   private var addonsDirectory: Option[AddonsDirectory] = None
+  private var environmentArgsRecord: Option[EnvironmentArgsRecord] = None
 
   def startup(environmentArgs: EnvironmentArgsRecord) = Try({
     sessionControl.initializeSession(environmentArgs.graphEngineDsn)
     sessionControl.loadSettings(environmentArgs.graphSettingsFile)
     addonsDirectory = Some(new AddonsDirectory(environmentArgs))
+    environmentArgsRecord = Some(environmentArgs)
   })
 
   private def normalizeRequest(request: Request):
@@ -77,20 +79,35 @@ abstract class Runner[GraphType, VertexType]
       case KeywordRecommendRequest(
         addons, keyword, ranker, vertexFinder, normalizerOption, take
       ) => {
+        val rankerInstanceOption =
+          Utils.getInstanceObjectFromString[
+            KeywordProximityRanker[GraphType, VertexType]
+            ](ranker)
+
+        val vertexFinderInstanceOption =
+          Utils
+            .getClassObjectFromString(
+              vertexFinder, classOf[
+                KeywordVertexFinder[VertexType, GraphType]
+                ]
+            )
+            .flatMap(classObject =>
+              environmentArgsRecord.map(environmentArgsRecord =>
+                (classObject, environmentArgsRecord))
+            )
+            .map(tuplet =>
+              tuplet._1
+                .getConstructor(classOf[EnvironmentArgsRecord])
+                .newInstance(tuplet._2)
+                .asInstanceOf[KeywordVertexFinder[VertexType, GraphType]]
+            )
+
         val normalizerInstanceOption =
           normalizerOption.flatMap(
             Utils.getInstanceObjectFromString[
                 GraphNormalizer[GraphType]
               ]
           )
-        val vertexFinderInstanceOption =
-          Utils.getInstanceObjectFromString[
-            KeywordVertexFinder[VertexType, GraphType]
-            ](vertexFinder)
-        val rankerInstanceOption =
-          Utils.getInstanceObjectFromString[
-              KeywordProximityRanker[GraphType, VertexType]
-            ](ranker)
 
         NKeywordRecommendRequest[GraphType, VertexType](
           addons = addons,
