@@ -19,14 +19,14 @@ class DistanceKeywordProximityRanker extends
     * @return List[String]
     */
   def rank(graph: PgxGraph,
-           keyword: List[String],
+           keywords: List[String],
            keywordVertexFinder: KeywordVertexFinder[
              PgxVertex[String],
              PgxGraph
              ],
            take: Int) = {
 
-    val keywordVerticesStreams = keyword.map(
+    val keywordVerticesStreams = keywords.map(
       keyword => keywordVertexFinder.find(keyword, graph)
     )
     lazy val anyKeywordVerticesStreamEmpty =

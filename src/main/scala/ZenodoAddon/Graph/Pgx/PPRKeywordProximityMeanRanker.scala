@@ -2,7 +2,8 @@ package ZenodoAddon.Graph.Pgx
 
 import ZenodoAddon.Graph.KeywordProximityRanker
 import ZenodoAddon.Graph.KeywordVertexFinder
-import oracle.pgx.api.{PgxGraph, PgxVertex}
+import oracle.pgx.api.{PgxGraph, PgxVertex, VertexSet}
+
 import scala.collection.JavaConverters
 
 
@@ -17,34 +18,58 @@ class PPRKeywordProximityMeanRanker extends
     * @return List[String]
     */
   def rank(graph: PgxGraph,
-           keyword: List[String],
+           keywords: List[String],
            keywordVertexFinder: KeywordVertexFinder[
              PgxVertex[String],
              PgxGraph
              ],
            take: Int) = {
 
-    val keywordMod = keyword.lift(0).get
-    val keywordVerticesStream = keywordVertexFinder.find(keywordMod, graph)
+    val keywordVerticesStreams = keywords.map(
+      keyword => keywordVertexFinder.find(keyword, graph)
+    )
+    lazy val anyKeywordVerticesStreamEmpty =
+      keywordVerticesStreams.foldLeft(false)(
+        (condition, keywordVerticesStream) => {
+          if (condition) condition
+          else keywordVerticesStream.isEmpty
+        }
+      )
 
-    if (keywordVerticesStream.isEmpty) List()
+    if (keywordVerticesStreams.isEmpty) List()
+    else if (anyKeywordVerticesStreamEmpty) List()
     else {
 
-      val keywordsPerDocumentVertex = Math.pow(Math.max(Math.ceil(
-        take.toDouble / keywordVerticesStream.size.toDouble
-      ), 1), 2.0).toInt
-      val neededDocumentVerticesStreamSize = Math.ceil(
-        take.toDouble / keywordsPerDocumentVertex.toDouble
-      ).toInt
+      val keywordVertexSetsList: List[VertexSet[String]] = {
+        val smallestKeywordVerticesStreamSize =
+          keywordVerticesStreams.foldLeft(Integer.MAX_VALUE)(
+            (smallestSize, currentStream) => {
+              if (currentStream.size < smallestSize) currentStream.size
+              else smallestSize
+            })
 
+        keywordVerticesStreams
+          .map(_.take(smallestKeywordVerticesStreamSize).toList)
+          .transpose
+          .map(vertices => {
+            val vertexSet = graph.createVertexSet[String]()
+            vertexSet.addAll(vertices.toArray)
+
+            vertexSet
+          })
+      }
+
+      val keywordsPerDocumentVertex = Math.pow(Math.max(Math.ceil(
+        take.toDouble / keywordVertexSetsList.size.toDouble
+      ), 1), 2).toInt
       val analyst = graph.getSession.createAnalyst()
 
-      val ranks = keywordVerticesStream
+      val ranks = keywordVertexSetsList
         .par
-        .flatMap(keywordVertex => {
+        .flatMap(keywordVertexSet => {
           val personalizedPageRankProp =
             analyst.personalizedPagerank(
-              graph, keywordVertex, 0.00001, 0.85, 5000, true
+              graph, keywordVertexSet, 0.00001, 0.85, 5000, true
             )
 
           val results = for {
@@ -53,10 +78,11 @@ class PPRKeywordProximityMeanRanker extends
                 .getTopKValues(keywordsPerDocumentVertex)
                 .iterator
             )
-            vertexType = tuplet.getKey.getProperty[String]("type")
-            vertexId = tuplet.getKey.getId
+            vertex = tuplet.getKey
+            vertexType = vertex.getProperty[String]("type")
+            vertexId = vertex.getId
+            if !keywordVertexSet.contains(vertex)
             if vertexType.equals("keyword")
-            if !vertexId.equalsIgnoreCase(keywordMod)
           } yield (vertexId, tuplet.getValue.toDouble)
 
           results.toList

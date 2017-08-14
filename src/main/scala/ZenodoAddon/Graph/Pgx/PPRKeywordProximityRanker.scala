@@ -1,7 +1,7 @@
 package ZenodoAddon.Graph.Pgx
 
 import ZenodoAddon.Graph.{KeywordProximityRanker, KeywordVertexFinder}
-import oracle.pgx.api.{PgxGraph, PgxVertex}
+import oracle.pgx.api.{PgxGraph, PgxVertex, VertexSet}
 
 import scala.collection.JavaConverters
 
@@ -17,25 +17,41 @@ class PPRKeywordProximityRanker extends
     * @return List[String]
     */
   def rank(graph: PgxGraph,
-           keyword: List[String],
+           keywords: List[String],
            keywordVertexFinder: KeywordVertexFinder[
              PgxVertex[String],
              PgxGraph
              ],
            take: Int) = {
 
-    val keywordMod = keyword.lift(0).get
-    val keywordVerticesStream = keywordVertexFinder.find(keywordMod, graph)
+    val keywordVerticesStreams = keywords.map(
+      keyword => keywordVertexFinder.find(keyword, graph)
+    )
+    lazy val anyKeywordVerticesStreamEmpty =
+      keywordVerticesStreams.foldLeft(false)(
+        (condition, keywordVerticesStream) => {
+          if (condition) condition
+          else keywordVerticesStream.isEmpty
+        }
+      )
 
-    if (keywordVerticesStream.isEmpty) List()
+    if (keywordVerticesStreams.isEmpty) List()
+    else if (anyKeywordVerticesStreamEmpty) List()
     else {
-      val keywordVertex: PgxVertex[String] =
-        keywordVerticesStream.iterator.next()
+      val startingKeywordVertices: VertexSet[String] = {
+        val keywordVerticesList =
+          keywordVerticesStreams.map(_.iterator.next())
+
+        val vertexSet = graph.createVertexSet[String]()
+        vertexSet.addAll(keywordVerticesList.toArray)
+
+        vertexSet
+      }
 
       val analyst = graph.getSession.createAnalyst()
 
       val personalizedPageRankProp = analyst.personalizedPagerank(
-        graph, keywordVertex, 0.00001, 0.85, 5000, true
+        graph, startingKeywordVertices, 0.00001, 0.85, 5000, true
       )
 
       val resultsIterator = for {
@@ -44,10 +60,11 @@ class PPRKeywordProximityRanker extends
             .getTopKValues(take)
             .iterator
         )
-        vertexType = tuplet.getKey.getProperty[String]("type")
-        vertexId = tuplet.getKey.getId
+        vertex = tuplet.getKey
+        vertexType = vertex.getProperty[String]("type")
+        vertexId = vertex.getId
+        if !startingKeywordVertices.contains(vertex)
         if vertexType.equals("keyword")
-        if !vertexId.equalsIgnoreCase(keywordMod)
       } yield vertexId
       val results = resultsIterator.toList
 
