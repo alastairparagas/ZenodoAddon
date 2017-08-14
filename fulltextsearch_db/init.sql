@@ -9,12 +9,12 @@ CREATE TABLE IF NOT EXISTS keyword_raw (
 
 
 CREATE OR REPLACE FUNCTION create_keyword(
-    keyword TEXT
+    keyword_text TEXT
 ) RETURNS VOID AS
 $$
 BEGIN
-    INSERT INTO keyword_raw(keyword, keyword_vector) VALUES(
-        keyword, to_tsvector('english', keyword)
+    INSERT INTO keyword_raw (keyword, keyword_vector) VALUES (
+        keyword_text, to_tsvector('english', keyword_text)
     );
 END;
 $$ LANGUAGE plpgsql;
@@ -27,12 +27,13 @@ $$
 DECLARE
     search_keyword ALIAS FOR $1;
 BEGIN
-    RETURN QUERY SELECT
-        keyword AS keyword,
-        ts_rank_cd(text_vector, query, 2 | 32) AS rank
+    RETURN QUERY (SELECT
+        keyword_raw.keyword,
+        ts_rank_cd(keyword_vector, query, 2 | 32) AS
+        NUMERIC(11,10))
     FROM keyword_raw, plainto_tsquery('english', search_keyword) AS query
-    WHERE query @@ text_vector
+    WHERE query @@ keyword_vector
     ORDER BY rank DESC
-    LIMIT 1;
+    LIMIT 1);
 END;
 $$ LANGUAGE plpgsql;
