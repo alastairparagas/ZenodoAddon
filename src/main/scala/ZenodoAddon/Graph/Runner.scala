@@ -163,7 +163,7 @@ abstract class Runner[GraphType, VertexType]
       ) =>
         val addonsDirectoryInstance = addonsDirectory.get
 
-        val overlayedExecution: () => KeywordRecommendResponse = {
+        val originalExecution: () => KeywordRecommendResponse = {
           val originalExecution = () => {
             val results = ranker.rank(
               sessionControl.getGraph,
@@ -178,23 +178,20 @@ abstract class Runner[GraphType, VertexType]
             )
           }
 
-          () => {
-            val keywordRecommendResponse = originalExecution.apply()
-            addonsDirectoryInstance
-              .allAddons()
-              .foldLeft(keywordRecommendResponse)(
-                (keywordRecommendResponse, addon) => {
-                  addon.unconditionalPipeline(
-                    requestPacket,
-                    () => keywordRecommendResponse
-                  )
-                })
-          }
+          addonsDirectoryInstance
+            .allAddons()
+            .foldLeft(originalExecution)(
+              (previousExecution, addon) =>
+                () => addon.unconditionalPipeline(
+                  requestPacket,
+                  previousExecution
+                )
+            )
         }
 
         val (composedExecution, addonsMetadata) = addons
           .flatMap(addonsDirectoryInstance.getAddon)
-          .foldLeft((overlayedExecution, Map[String, Map[String, String]]()))(
+          .foldLeft((originalExecution, Map[String, Map[String, String]]()))(
             (accumulated, queryAddonTuple) => {
               val (composedExecution, addonResultsMetadata) = accumulated
               val (queryAddonObject, queryAddonName) = queryAddonTuple
@@ -205,9 +202,7 @@ abstract class Runner[GraphType, VertexType]
           })
 
         val keywordRecommendResponse = composedExecution()
-        keywordRecommendResponse.copy(
-          addonsMetadata = addonsMetadata
-        )
+        keywordRecommendResponse.copy(addonsMetadata = addonsMetadata)
     }
   })
 

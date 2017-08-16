@@ -33,23 +33,29 @@ class CacheAddon(environmentArgs: EnvironmentArgsRecord) extends QueryAddon
     take: Int,
     results: List[String]
   ): Unit = Future {
+
     redisPoolOption.get.withClient(client => {
+
+      // Create a new cache entry for the fresh computation output and put
+      //    the current cache entry's timestamp of entry into the 'cache-ages'
+      //    hashmap.
       val cacheKey =
-        s"krr,${keyword.sorted.mkString(".")},${ranker.getClass.getName},${take}"
+        s"krr,${keyword.sorted.mkString(".")}," +
+          s"${ranker.getClass.getName},${take}"
       results
         .foreach(result => client.rpush(cacheKey, result))
       client.hmset("cache-ages", Map(
         cacheKey -> Instant.now().toEpochMilli
       ))
 
-      val cacheKeysList = {
-        val cacheKeysForKeywordAndRanker =
-          s"krr,${keyword},${ranker.getClass.getName},*"
+      // Delete cache entries with lower take value as well as those cache
+      //    entries timestamp in the 'cache-ages' hashmap
+      val cacheKeysList: List[String] = {
+        val cacheKeysPattern =
+          s"krr,${keyword.sorted.mkString(".")},${ranker.getClass.getName},*"
 
         val scanResults = client.scan(
-          0,
-          cacheKeysForKeywordAndRanker,
-          count = take
+          0, cacheKeysPattern, take
         )
         val (_, matchedKeys) = scanResults.getOrElse((None, None))
 
@@ -62,8 +68,13 @@ class CacheAddon(environmentArgs: EnvironmentArgsRecord) extends QueryAddon
           (cacheKeyString, Integer.parseInt(cacheKeyString.split(","){3}))
         )
         .filter(_._2 < take)
-        .foreach[Unit](tuplet => client.del(tuplet._1))
+        .foreach[Unit](tuplet => {
+          client.hdel("cache-ages", tuplet._1)
+          client.del(tuplet._1)
+        })
+
     })
+
   }
 
   def pipeline
@@ -84,7 +95,7 @@ class CacheAddon(environmentArgs: EnvironmentArgsRecord) extends QueryAddon
         val cacheKeyOption = {
           val scanResults = client.scan(
             0,
-            s"krr,${keyword},${ranker.getClass.getName},*",
+            s"krr,${keyword.sorted.mkString(".")},${ranker.getClass.getName},*",
             count = take
           )
           val (_, matchedKeys) = scanResults.getOrElse((None, None))
