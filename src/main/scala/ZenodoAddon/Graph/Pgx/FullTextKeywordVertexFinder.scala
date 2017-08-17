@@ -33,9 +33,10 @@ class FullTextKeywordVertexFinder(environmentArgsRecord: EnvironmentArgsRecord)
 
     val matchingKeywordFuture: Future[Stream[PgxVertex[String]]] = for {
       connectionObject <- connection
-      sqlResult <- sql"SELECT search_keyword_matches($keyword)"
+      sqlResult <-
+      sql"SELECT keyword, rank FROM search_keyword_matches($keyword)"
         .query(
-          row => (row(0).string, row(1).double)
+          row => (row(0).string, row(1).any.toString.toDouble)
         )(connectionObject)
 
       matchingKeywordStream = sqlResult

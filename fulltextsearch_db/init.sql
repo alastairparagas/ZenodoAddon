@@ -28,8 +28,8 @@ DECLARE
     search_keyword ALIAS FOR $1;
 BEGIN
     RETURN QUERY (SELECT
-        keyword_raw.keyword,
-        ts_rank_cd(keyword_vector, query, 2 | 32) :: NUMERIC(11,10)
+        keyword_raw.keyword AS keyword,
+        ts_rank_cd(keyword_vector, query, 2 | 32) :: NUMERIC(11,10) AS rank
     FROM keyword_raw, plainto_tsquery('english', search_keyword) AS query
     WHERE query @@ keyword_vector
     ORDER BY rank DESC
