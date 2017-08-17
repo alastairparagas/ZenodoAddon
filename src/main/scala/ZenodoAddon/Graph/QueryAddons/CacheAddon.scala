@@ -1,6 +1,6 @@
 package ZenodoAddon.Graph.QueryAddons
 
-import ZenodoAddon.Graph.{KeywordProximityRanker, KeywordRecommendResponse, NKeywordRecommendRequest}
+import ZenodoAddon.Graph.{KeywordProximityRanker, KeywordRecommendResponse, KeywordVertexFinder, NKeywordRecommendRequest}
 import java.time.Instant
 
 import ZenodoAddon.EnvironmentArgs.EnvironmentArgsRecord
@@ -30,6 +30,7 @@ class CacheAddon(environmentArgs: EnvironmentArgsRecord) extends QueryAddon
   (
     keyword: List[String],
     ranker: KeywordProximityRanker[_, _],
+    vertexFinder: KeywordVertexFinder[_, _],
     take: Int,
     results: List[String]
   ): Unit = Future {
@@ -41,7 +42,7 @@ class CacheAddon(environmentArgs: EnvironmentArgsRecord) extends QueryAddon
       //    hashmap.
       val cacheKey =
         s"krr,${keyword.sorted.mkString(".")}," +
-          s"${ranker.getClass.getName},${take}"
+          s"${ranker.getClass.getName},${vertexFinder.getClass.getName},${take}"
       results
         .foreach(result => client.rpush(cacheKey, result))
       client.hmset("cache-ages", Map(
@@ -52,7 +53,8 @@ class CacheAddon(environmentArgs: EnvironmentArgsRecord) extends QueryAddon
       //    entries timestamp in the 'cache-ages' hashmap
       val cacheKeysList: List[String] = {
         val cacheKeysPattern =
-          s"krr,${keyword.sorted.mkString(".")},${ranker.getClass.getName},*"
+          s"krr,${keyword.sorted.mkString(".")}," +
+            s"${ranker.getClass.getName},${vertexFinder.getClass.getName}.*"
 
         val scanResults = client.scan(
           0, cacheKeysPattern, take
@@ -86,6 +88,7 @@ class CacheAddon(environmentArgs: EnvironmentArgsRecord) extends QueryAddon
     val keyword = requestPacket.keyword
     val ranker = requestPacket.ranker.get
     val take = requestPacket.take
+    val vertexFinder = requestPacket.vertexFinder.get
 
     val (cachedResults, cacheAge) = {
       var cachedResultOption: Option[List[Option[String]]] = None
@@ -95,7 +98,8 @@ class CacheAddon(environmentArgs: EnvironmentArgsRecord) extends QueryAddon
         val cacheKeyOption = {
           val scanResults = client.scan(
             0,
-            s"krr,${keyword.sorted.mkString(".")},${ranker.getClass.getName},*",
+            s"krr,${keyword.sorted.mkString(".")}," +
+              s"${ranker.getClass.getName},${vertexFinder.getClass.getName}.*",
             count = take
           )
           val (_, matchedKeys) = scanResults.getOrElse((None, None))
@@ -132,7 +136,7 @@ class CacheAddon(environmentArgs: EnvironmentArgsRecord) extends QueryAddon
       val queryExecutionResponse = queryExecution()
       queryExecutionResponse.result
         .foreach(results => cacheKeywordRecommendationInRedis(
-          keyword, ranker, take, results
+          keyword, ranker, vertexFinder, take, results
         ))
       (queryExecutionResponse, Map("cache-age" -> cacheAge.toString))
     } else (
@@ -151,11 +155,13 @@ class CacheAddon(environmentArgs: EnvironmentArgsRecord) extends QueryAddon
     val keyword = requestPacket.keyword
     val ranker = requestPacket.ranker.get
     val take = requestPacket.take
+    val vertexFinder = requestPacket.vertexFinder.get
 
     val keywordRecommendResponse = queryExecution.apply()
     keywordRecommendResponse.result match {
       case Some(result) => cacheKeywordRecommendationInRedis(
-        keyword, ranker, take, result)
+        keyword, ranker, vertexFinder, take, result
+      )
       case None => Unit
     }
 
