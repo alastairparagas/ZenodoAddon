@@ -87,16 +87,10 @@ object Main extends App
             result = None
           )
         } else {
-          Try({
-            keywordRecommendRequestOption.get
-          })
-            .flatMap(keywordRecommendReq => graphRunner.query(
-              keywordRecommendReq
-            ))
+          Try({keywordRecommendRequestOption.get})
+            .flatMap(graphRunner.query)
             .recover({
               case error: Throwable => {
-                error.printStackTrace()
-
                 val errorString = error.getMessage
                 if (errorString == null) {
                   KeywordRecommendResponse(

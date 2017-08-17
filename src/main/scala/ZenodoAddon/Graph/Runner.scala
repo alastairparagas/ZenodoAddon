@@ -1,8 +1,8 @@
 package ZenodoAddon.Graph
 
 import ZenodoAddon.EnvironmentArgs.EnvironmentArgsRecord
+import ZenodoAddon.Graph.Pgx.PgxDirectory
 import ZenodoAddon.Graph.QueryAddons.AddonsDirectory
-import ZenodoAddon.Utils
 
 import scala.util.Try
 
@@ -63,8 +63,8 @@ abstract class Runner[GraphType, VertexType]
 ) extends AutoCloseable
 {
 
-  private var addonsDirectory: Option[AddonsDirectory] = None
-  private var environmentArgsRecord: Option[EnvironmentArgsRecord] = None
+  protected var addonsDirectory: Option[AddonsDirectory] = None
+  protected var environmentArgsRecord: Option[EnvironmentArgsRecord] = None
 
   def startup(environmentArgs: EnvironmentArgsRecord) = Try({
     sessionControl.initializeSession(environmentArgs.graphEngineDsn)
@@ -73,52 +73,8 @@ abstract class Runner[GraphType, VertexType]
     environmentArgsRecord = Some(environmentArgs)
   })
 
-  private def normalizeRequest(request: Request):
-  NRequest[GraphType, VertexType] =
-    request match {
-      case KeywordRecommendRequest(
-        addons, keyword, ranker, vertexFinder, normalizerOption, take
-      ) => {
-        val rankerInstanceOption =
-          Utils.getInstanceObjectFromString[
-            KeywordProximityRanker[GraphType, VertexType]
-            ](ranker)
-
-        val vertexFinderInstanceOption =
-          Utils
-            .getClassObjectFromString(
-              vertexFinder, classOf[
-                KeywordVertexFinder[VertexType, GraphType]
-                ]
-            )
-            .flatMap(classObject =>
-              environmentArgsRecord.map(environmentArgsRecord =>
-                (classObject, environmentArgsRecord))
-            )
-            .map(tuplet =>
-              tuplet._1
-                .getConstructor(classOf[EnvironmentArgsRecord])
-                .newInstance(tuplet._2)
-                .asInstanceOf[KeywordVertexFinder[VertexType, GraphType]]
-            )
-
-        val normalizerInstanceOption =
-          normalizerOption.flatMap(
-            Utils.getInstanceObjectFromString[
-                GraphNormalizer[GraphType]
-              ]
-          )
-
-        NKeywordRecommendRequest[GraphType, VertexType](
-          addons = addons,
-          keyword = keyword,
-          ranker = rankerInstanceOption,
-          vertexFinder = vertexFinderInstanceOption,
-          normalizer = normalizerInstanceOption,
-          take = take
-        )
-      }
-    }
+  protected def normalizeRequest(request: Request):
+  NRequest[GraphType, VertexType]
 
   def query(request: Request) = Try({
     normalizeRequest(request) match {
