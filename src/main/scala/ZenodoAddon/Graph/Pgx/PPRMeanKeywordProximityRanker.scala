@@ -7,7 +7,7 @@ import oracle.pgx.api.{PgxGraph, PgxVertex, VertexSet}
 import scala.collection.JavaConverters
 
 
-class PPRKeywordProximityMeanRanker extends
+class PPRMeanKeywordProximityRanker extends
   KeywordProximityRanker[PgxGraph, PgxVertex[String]]
 {
 
