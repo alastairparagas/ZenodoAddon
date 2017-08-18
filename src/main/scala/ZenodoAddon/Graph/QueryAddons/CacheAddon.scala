@@ -43,22 +43,17 @@ class CacheAddon(environmentArgs: EnvironmentArgsRecord) extends QueryAddon
       val cacheKey =
         s"krr,${keyword.sorted.mkString(".")}," +
           s"${ranker.getClass.getName},${vertexFinder.getClass.getName},${take}"
-      results
-        .foreach(result => client.rpush(cacheKey, result))
-      client.hmset("cache-ages", Map(
-        cacheKey -> Instant.now().toEpochMilli
-      ))
+      results.foreach(result => client.rpush(cacheKey, result))
+      client.hmset("cache-ages", Map(cacheKey -> Instant.now().toEpochMilli))
 
       // Delete cache entries with lower take value as well as those cache
       //    entries timestamp in the 'cache-ages' hashmap
       val cacheKeysList: List[String] = {
         val cacheKeysPattern =
           s"krr,${keyword.sorted.mkString(".")}," +
-            s"${ranker.getClass.getName},${vertexFinder.getClass.getName}.*"
+            s"${ranker.getClass.getName},${vertexFinder.getClass.getName}*"
 
-        val scanResults = client.scan(
-          0, cacheKeysPattern, take
-        )
+        val scanResults = client.scan(0, cacheKeysPattern, take)
         val (_, matchedKeys) = scanResults.getOrElse((None, None))
 
         matchedKeys
@@ -67,7 +62,7 @@ class CacheAddon(environmentArgs: EnvironmentArgsRecord) extends QueryAddon
       }
       cacheKeysList
         .map(cacheKeyString =>
-          (cacheKeyString, Integer.parseInt(cacheKeyString.split(","){3}))
+          (cacheKeyString, Integer.parseInt(cacheKeyString.split(","){4}))
         )
         .filter(_._2 < take)
         .foreach[Unit](tuplet => {
@@ -99,7 +94,7 @@ class CacheAddon(environmentArgs: EnvironmentArgsRecord) extends QueryAddon
           val scanResults = client.scan(
             0,
             s"krr,${keyword.sorted.mkString(".")}," +
-              s"${ranker.getClass.getName},${vertexFinder.getClass.getName}.*",
+              s"${ranker.getClass.getName},${vertexFinder.getClass.getName}*",
             count = take
           )
           val (_, matchedKeys) = scanResults.getOrElse((None, None))
@@ -108,7 +103,7 @@ class CacheAddon(environmentArgs: EnvironmentArgsRecord) extends QueryAddon
             .getOrElse(List())
             .flatten
             .filter(keyname =>
-              Integer.parseInt(keyname.split(","){3}) >= take
+              Integer.parseInt(keyname.split(","){4}) >= take
             )
             .lift(0)
         }
