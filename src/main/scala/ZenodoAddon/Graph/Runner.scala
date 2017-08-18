@@ -1,7 +1,6 @@
 package ZenodoAddon.Graph
 
 import ZenodoAddon.EnvironmentArgs.EnvironmentArgsRecord
-import ZenodoAddon.Graph.Pgx.PgxDirectory
 import ZenodoAddon.Graph.QueryAddons.AddonsDirectory
 
 import scala.util.Try
