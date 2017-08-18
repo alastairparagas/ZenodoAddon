@@ -40,14 +40,17 @@ class CacheAddon(environmentArgs: EnvironmentArgsRecord) extends QueryAddon
       // Create a new cache entry for the fresh computation output and put
       //    the current cache entry's timestamp of entry into the 'cache-ages'
       //    hashmap.
-      val cacheKey =
-        s"krr,${keyword.sorted.mkString(".")}," +
-          s"${ranker.getClass.getName},${vertexFinder.getClass.getName},${take}"
-      results.foreach(result => client.rpush(cacheKey, result))
-      client.hmset("cache-ages", Map(cacheKey -> Instant.now().toEpochMilli))
+      val insertResultToCache = () => {
+        val cacheKey =
+          s"krr,${keyword.sorted.mkString(".")}," +
+            s"${ranker.getClass.getName}," +
+            s"${vertexFinder.getClass.getName},${take}"
+        results.foreach(result => client.rpush(cacheKey, result))
+        client.hmset("cache-ages", Map(cacheKey -> Instant.now().toEpochMilli))
+      }
 
       // Delete cache entries with lower take value as well as those cache
-      //    entries timestamp in the 'cache-ages' hashmap
+      //    entries' timestamp in the 'cache-ages' hashmap
       val cacheKeysList: List[String] = {
         val cacheKeysPattern =
           s"krr,${keyword.sorted.mkString(".")}," +
@@ -60,15 +63,29 @@ class CacheAddon(environmentArgs: EnvironmentArgsRecord) extends QueryAddon
           .getOrElse(List())
           .flatten
       }
-      cacheKeysList
+
+      val cacheKeyAndTakeTuples = cacheKeysList
         .map(cacheKeyString =>
           (cacheKeyString, Integer.parseInt(cacheKeyString.split(","){4}))
         )
-        .filter(_._2 < take)
+
+      cacheKeyAndTakeTuples.filter(_._2 < take)
         .foreach[Unit](tuplet => {
           client.hdel("cache-ages", tuplet._1)
           client.del(tuplet._1)
         })
+
+      val largestCacheKeyAndTakeTuple = cacheKeyAndTakeTuples
+        .sortBy(_._2)
+        .reverse
+        .lift(0)
+      largestCacheKeyAndTakeTuple match {
+        case Some(tuplet) =>
+          if (tuplet._2 >= take) Unit
+          else insertResultToCache.apply()
+        case None =>
+          insertResultToCache.apply()
+      }
 
     })
 
