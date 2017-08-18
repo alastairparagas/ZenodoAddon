@@ -92,6 +92,8 @@ object Main extends App
             .recover({
               case error: Throwable => {
                 val errorString = error.getMessage
+                error.printStackTrace()
+
                 if (errorString == null) {
                   KeywordRecommendResponse(
                     isSuccessful = false,
@@ -111,7 +113,6 @@ object Main extends App
         }
       }
     }
-
     post("/recommendation", (req, res) => KeywordRecommendResponseEncode.encode(
       recommendationHandler(req, res)
     ))
