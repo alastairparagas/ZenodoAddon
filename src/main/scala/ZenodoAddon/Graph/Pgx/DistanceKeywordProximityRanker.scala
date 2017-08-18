@@ -87,6 +87,7 @@ class DistanceKeywordProximityRanker extends
       analyst.destroy()
 
       resultsList
+        .map(_.map(_.toLowerCase))
         .reduce((resultList1, resultList2) =>
           resultList1.filter(resultList2.contains(_))
         )
