@@ -91,6 +91,7 @@ class DistanceKeywordProximityRanker extends
         .reduce((resultList1, resultList2) =>
           resultList1.filter(resultList2.contains(_))
         )
+        .distinct
         .take(take)
     }
   }
