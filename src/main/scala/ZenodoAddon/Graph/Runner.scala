@@ -75,6 +75,39 @@ abstract class Runner[GraphType, VertexType]
   protected def normalizeRequest(request: Request):
   NRequest[GraphType, VertexType]
 
+  private def addonOverlayKeywordRecommendRequest
+  (
+    requestPacket: NKeywordRecommendRequest[_, _],
+    originalExecution: () => KeywordRecommendResponse
+  ): KeywordRecommendResponse = {
+    val addonsDirectoryInstance = addonsDirectory.get
+
+    val overlayedExecution = addonsDirectoryInstance
+      .allAddons()
+      .foldLeft(originalExecution)(
+        (previousExecution, addon) =>
+          () => addon.unconditionalPipeline(
+            requestPacket,
+            previousExecution
+          )
+      )
+
+    val (composedExecution, addonsMetadata) = requestPacket.addons
+      .flatMap(addonsDirectoryInstance.getAddon)
+      .foldLeft((overlayedExecution, Map[String, Map[String, String]]()))(
+        (accumulated, queryAddonTuple) => {
+          val (composedExecution, addonResultsMetadata) = accumulated
+          val (queryAddonObject, queryAddonName) = queryAddonTuple
+          val (newComposedExecution, addonResultMetadata) =
+            queryAddonObject.pipeline(requestPacket, composedExecution)
+          (() => newComposedExecution,
+            addonResultsMetadata + (queryAddonName -> addonResultMetadata))
+        })
+
+    val keywordRecommendResponse = composedExecution()
+    keywordRecommendResponse.copy(addonsMetadata = addonsMetadata)
+  }
+
   def query(request: Request) = Try({
     normalizeRequest(request) match {
       case NKeywordRecommendRequest(
@@ -95,69 +128,44 @@ abstract class Runner[GraphType, VertexType]
           result = None
         )
 
-      case NKeywordRecommendRequest(
+      case requestPacket @ NKeywordRecommendRequest(
         addons, keyword, Some(ranker),
         Some(vertexFinder), Some(normalizer), take
       ) =>
-        sessionControl.transformGraph(normalizer)
-        val result = ranker.rank(
-          sessionControl.getGraph,
-          keyword,
-          vertexFinder,
-          take
-        )
-        KeywordRecommendResponse(
-          isSuccessful = true,
-          message = Some("Success"),
-          result = Some(result)
-        )
+        addonOverlayKeywordRecommendRequest(requestPacket, () => {
+          sessionControl.transformGraph(normalizer)
+
+          val result = ranker.rank(
+            sessionControl.getGraph,
+            keyword,
+            vertexFinder,
+            take
+          )
+          KeywordRecommendResponse(
+            isSuccessful = true,
+            message = Some("Success"),
+            result = Some(result)
+          )
+        })
 
       case requestPacket @ NKeywordRecommendRequest(
         addons, keyword, Some(ranker),
         Some(vertexFinder), None, take
       ) =>
-        val addonsDirectoryInstance = addonsDirectory.get
+        addonOverlayKeywordRecommendRequest(requestPacket, () => {
+          val results = ranker.rank(
+            sessionControl.getGraph,
+            keyword,
+            vertexFinder,
+            take
+          )
 
-        val originalExecution: () => KeywordRecommendResponse = {
-          val originalExecution = () => {
-            val results = ranker.rank(
-              sessionControl.getGraph,
-              keyword,
-              vertexFinder,
-              take
-            )
-            KeywordRecommendResponse(
-              isSuccessful = true,
-              message = Some("Success"),
-              result = Some(results)
-            )
-          }
-
-          addonsDirectoryInstance
-            .allAddons()
-            .foldLeft(originalExecution)(
-              (previousExecution, addon) =>
-                () => addon.unconditionalPipeline(
-                  requestPacket,
-                  previousExecution
-                )
-            )
-        }
-
-        val (composedExecution, addonsMetadata) = addons
-          .flatMap(addonsDirectoryInstance.getAddon)
-          .foldLeft((originalExecution, Map[String, Map[String, String]]()))(
-            (accumulated, queryAddonTuple) => {
-              val (composedExecution, addonResultsMetadata) = accumulated
-              val (queryAddonObject, queryAddonName) = queryAddonTuple
-              val (newComposedExecution, addonResultMetadata) =
-                queryAddonObject.pipeline(requestPacket, composedExecution)
-              (() => newComposedExecution,
-                addonResultsMetadata + (queryAddonName -> addonResultMetadata))
-          })
-
-        val keywordRecommendResponse = composedExecution()
-        keywordRecommendResponse.copy(addonsMetadata = addonsMetadata)
+          KeywordRecommendResponse(
+            isSuccessful = true,
+            message = Some("Success"),
+            result = Some(results)
+          )
+        })
     }
   })
 
