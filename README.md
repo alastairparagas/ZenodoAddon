@@ -41,23 +41,25 @@ Also, 2 functions are automatically created on DB bootstrap - `create_keyword(ke
 ## API Endpoint
 * POST _/recommendation/_
   * Request: `json` - must be provided as the body of the request
-       ```javascript
-        {
-        	"keyword": ["ghost", "electricity"] // Keyword tags a user gave
-        	"ranker": "distance" // Could be distance, ppr, pprMean
-        	"vertexFinder": "fulltext" // Could be fulltext, plain
-        	"count": 20,
-        	"addons": ["cache"] // Only available addon is cache for the moment. (optional)
-        }
-        ```
 
+```javascript
+       {
+        "keyword": ["ghost", "electricity"], // Keyword tags a user gave
+        "ranker": "distance", // Could be distance, ppr, pprMean
+        "vertexFinder": "fulltext", // Could be fulltext, plain
+        "count": 20,
+        "addons": ["cache"] // Only available addon is cache for the moment. (optional)
+       }
+```
   * Response: `json` - emitted by the microservice
-       ```javascript
+
+```javascript
         {
-        	"success": true // if >= 400, false
-        	"message": "result message"
-        	"data": {
-        	    "addons": {} // Dict mapping of addon names to execution metadata
-        	    "results": [] // Actual list of keyword recommendations
-        	}
-        ```
+        "success": true, // if >= 400, false
+        "message": "result message",
+        "data": {
+            "addons": {}, // Dict mapping of addons to execution metadata
+            "results": [] // Actual list of keyword recommendations
+        }
+        }
+```
