@@ -1,6 +1,7 @@
 ![Zenodo](http://about.zenodo.org/static/img/logos/zenodo-gradient-square.svg)
 # ZenodoAddon (Backend)
-> A Keyword Recommendation and Anomaly Detection Service for Zenodo, an open-source document repository funded and powered by [CERN](http://cern.ch)
+> A Keyword Recommendation and Anomaly Detection Service for Zenodo, an
+open-source document repository funded and powered by [CERN](http://cern.ch). Presentation about it is at [https://cds.cern.ch/record/2280009](https://cds.cern.ch/record/2280009). Presentation slides at [https://drive.google.com/file/d/0BzW6zUEv_wl9Nmh2cTUyRmYxYlE/view?usp=sharing](https://drive.google.com/file/d/0BzW6zUEv_wl9Nmh2cTUyRmYxYlE/view?usp=sharing).
 
 ## Tech Stack
 * 🐍 **Scala 2.12** - JVM language with practically absolute interopability with Java
